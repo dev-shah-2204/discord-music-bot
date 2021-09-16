@@ -21,4 +21,4 @@ class MusicBot(commands.Bot):
         print(f"ID: {self.user.id}")
 
         # Set activity to "Listening to m!help"
-        self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="m!help"))
+        await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="m!help"))
