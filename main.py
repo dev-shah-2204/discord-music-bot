@@ -15,4 +15,4 @@ for cog in cogs:
         except Exception as e:
             print(e)
 
-bot.run(os.environ.get('token'))
+bot.run(os.environ.get('MusicBotToken'))
