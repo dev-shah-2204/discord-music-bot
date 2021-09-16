@@ -132,7 +132,7 @@ class Music(commands.Cog):
         voice = discord.utils.get(self.bot.voice_clients, guild=ctx.guild)
 
         if voice is not None:
-            await ctx.message.add_reaction("🛑")
+            await ctx.message.add_reaction("⏹️")
             voice.stop()
         else:
             await ctx.send("I'm not in a voice channel")
