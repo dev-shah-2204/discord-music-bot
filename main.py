@@ -1,7 +1,6 @@
 import os
 from bot import MusicBot
 
-FFMPEG_DOWNLOAD_URL = "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git"  # For heroku
 
 cogs = [
     'music'
