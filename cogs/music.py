@@ -3,9 +3,55 @@ import youtube_dl
 import urllib.request
 import re
 
+from asyncio import sleep
 from discord.ext import commands
 
 
+# Helper functions
+sent_embed = {
+# Structure:
+# "guild": []
+}
+
+playlist = {
+
+}
+
+FFMPEG_OPTIONS = {
+            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+            'options': '-vn'
+        }
+
+YDL_OPTIONS = {
+    'format': 'bestaudio',
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192'
+    }]
+}
+
+async def get_title(ctx, url):
+    with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+        info = ydl.extract_info(url, download=False)
+        title = info['title']
+        return title
+
+async def find_song(ctx, args):
+    args = args.replace(' ', '+')
+    html_content = urllib.request.urlopen(f"https://youtube.com/results?search_query={args}")  # YouTube's search link structure
+    video_ids = re.findall(r"watch\?v=(\S{11})", html_content.read().decode())  # Each video has a unique ID, 11 characters long.
+
+    try:
+        args = f"https://youtube.com/watch?v={video_ids[0]}"
+        return args
+
+    except KeyError:  # If video_ids[0] doesn't exist
+        await ctx.send(f"No results were found for '{args}'.")
+        return None
+
+
+# Main cog
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -35,71 +81,118 @@ class Music(commands.Cog):
         await ctx.message.add_reaction("👋")
 
 
-    @commands.command(name="play", aliases=["p"], help="Play a song.")
-    async def play(self, ctx, *, args:str):
-        await self.join(ctx)
+    async def wait_until_song_complete(self, ctx, args):
+        # Code written with really bad logic. Forgive me.
+        vc = ctx.voice_client
 
-        FFMPEG_OPTIONS = {
-            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': '-vn'
-        }
+        if vc is None:  # If they made the bot leave the voice channel before the function was re-called
+            return
 
-        YDL_OPTIONS = {
-            'format': 'bestaudio',
-            #'outtmpl': f"./music/{ctx.guild.id}.mp3",
-            'postprocessors': [
-                {
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192'
-                }
-            ]
-        }
+        if vc.is_playing():
+            if str(ctx.guild.id) not in playlist:
+                playlist[str(ctx.guild.id)] = []
+                playlist[str(ctx.guild.id)].append(args)
 
+            else:
+                playlist[str(ctx.guild.id)].append(args)
+
+            if args.startswith('https://') or args.startswith('http://'):
+                song = await get_title(ctx, args)  # So that we can get the song title
+            else:
+                song = args  # Just use the name that the user passed
+
+            em = discord.Embed(
+                title="Added song to playlist",
+                description=song,
+                color=0x60FF60
+            )
+
+            # Really bad logic. I know. I couldn't find another way.
+            if str(ctx.guild.id) not in sent_embed:
+                sent_embed[str(ctx.guild.id)] = []
+                sent_embed[str(ctx.guild.id)].append(args)
+                await ctx.send(embed=em)
+
+            else:
+                if args not in sent_embed[str(ctx.guild.id)]:
+                    sent_embed[str(ctx.guild.id)].append(args)
+                    await ctx.send(embed=em)
+
+
+            await sleep(3)  # Check every 3 seconds
+            await self.wait_until_song_complete(ctx, args)
+
+        if vc.is_paused():
+            await sleep(10)
+            await self.wait_until_song_complete(ctx, args)
+
+        else:
+            if str(ctx.guild.id) not in playlist:
+                playlist[str(ctx.guild.id)] = []
+
+            else:
+                if args in playlist[str(ctx.guild.id)]:
+                    del playlist[str(ctx.guild.id)][0]
+
+            await self.play_song(ctx, args)
+
+
+
+    async def play_song(self, ctx, args):
         vc = ctx.voice_client
 
         if not args.startswith("https://") or not args.startswith("http://"):
-            args = args.replace(' ', '+')
-            html_content = urllib.request.urlopen(f"https://youtube.com/results?search_query={args}")
-            video_ids = re.findall(r"watch\?v=(\S{11})", html_content.read().decode())
+            args = await find_song(ctx, args)
 
+        if args is not None:
             try:
-                args = f"https://youtube.com/watch?v={video_ids[0]}"
-            except KeyError:
-                await ctx.send(f"No results were found for that.")
+                with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
+                    info = ydl.extract_info(args, download=False)
 
+                    if info['duration'] > 1200:
+                        await ctx.send("You cannot play videos longer than 20 minutes.")
+                        return
 
-        try:
-            with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-                info = ydl.extract_info(args, download=False)
-                url = info['formats'][0]['url']
-                source = await discord.FFmpegOpusAudio.from_probe(url, **FFMPEG_OPTIONS)
-                vc.play(source)
+                    url = info['formats'][0]['url']
+                    source = await discord.FFmpegOpusAudio.from_probe(url, **FFMPEG_OPTIONS)
+                    vc.play(source)
 
-                em = discord.Embed(
-                    title="Now Playing",
-                    description=f"[{info['title']}]({args})",
-                    color=0x60FF60
-                )
-                em.set_image(url=info['thumbnail'])
-                await ctx.send(embed=em)
+                    em = discord.Embed(
+                        title="Now Playing",
+                        description=f"[{info['title']}]({args})",
+                        color=0x60FF60
+                    )
+                    em.set_image(url=info['thumbnail'])
+                    await ctx.send(embed=em)
 
-        except youtube_dl.utils.DownloadError:
-            await ctx.send("There was an error. Are you sure that is the correct URL?")
-
-        except discord.errors.ClientException:
-            vc.stop()
-            try:
-                vc.play(source)
             except youtube_dl.utils.DownloadError:
-                await ctx.send("There was an error. Are you sure that is the correct URL?")
+                await ctx.send("There was an error playing from the given arguements.")
 
+            except discord.errors.ClientException:
+                await sleep(2)  # The time taken to load a song. Else bot keeps raising this exception
+                playlist[str(ctx.guild.id)].append(args)
+                try:
+                    vc.play(source)
+                except youtube_dl.utils.DownloadError:
+                    await ctx.send("There was an error. Are you sure that is the correct URL?")
+                return
+
+
+
+    @commands.command(name="play", aliases=["p"], help="Play a song.")
+    async def play(self, ctx, *, args:str):
+        await self.join(ctx)
+        await self.wait_until_song_complete(ctx, args)
 
 
 
     @commands.command(name="pause", help="Pause a song.")
     async def pause(self, ctx):
-        voice = discord.utils.get(self.bot.voice_clients, guild=ctx.guild)
+        if ctx.author.voice is None:
+            await ctx.send("You need to be in a voice channel to run that command")
+            return
+
+        voice = ctx.voice_client
 
         if voice is None:
             await ctx.send("Bruh I'm not even in a VC smh.")
@@ -114,7 +207,11 @@ class Music(commands.Cog):
 
     @commands.command(name="resume", help="Resume a paused song.")
     async def resume(self, ctx):
-        voice = discord.utils.get(self.bot.voice_clients, guild=ctx.guild)
+        if ctx.author.voice is None:
+            await ctx.send("You need to be in a voice channel to run that command")
+            return
+
+        voice = ctx.voice_client
 
         if voice is None:
             await ctx.send("I'm not in a voice channel")
@@ -129,13 +226,73 @@ class Music(commands.Cog):
 
     @commands.command(name="stop", help="Stop playing a song. Completely.")
     async def stop(self, ctx):
-        voice = discord.utils.get(self.bot.voice_clients, guild=ctx.guild)
+        if ctx.author.voice is None:
+            await ctx.send("You need to be in a voice channel to run that command")
+            return
+
+        voice = ctx.voice_client
 
         if voice is not None:
             await ctx.message.add_reaction("⏹️")
             voice.stop()
         else:
             await ctx.send("I'm not in a voice channel")
+
+    @commands.command(name="skip")
+    async def skip(self, ctx):
+        if ctx.author.voice is None:
+            await ctx.send("You need to be in a voice channel to run that command")
+            return
+
+        voice = ctx.voice_client
+
+        if voice is not None:
+            if voice.is_playing():
+                voice.stop()
+                await ctx.send(f"Song skipped by {ctx.author.mention}")
+
+            if voice.is_paused():
+                pass
+
+        else:
+            await ctx.send("I'm not in a voice channel.")
+
+
+    @commands.command(name="playlist", aliases=["q","queue"])
+    async def queue(self, ctx):
+        if ctx.author.voice is None:
+            await ctx.send("You need to be in a voice channel to run that command")
+            return
+
+        voice = ctx.voice_client
+
+        if voice is None:
+            await ctx.send("I'm not in a voice channel")
+            return
+
+        if str(ctx.guild.id) not in playlist:
+            await ctx.send("The playlist is empty")
+
+        else:
+            desc = ""
+            i = 1
+
+            for song in playlist[str(ctx.guild.id)]:
+                desc += f"{i}. {song}\n"
+                i += 1
+
+            if desc != "":
+                em = discord.Embed(
+                    title="Upcoming",
+                    description=desc,
+                    color=0x60FF60
+                )
+
+            else:
+                await ctx.send("The playlist is empty")
+
+            await ctx.send(embed=em)
+
 
 
 def setup(bot):
