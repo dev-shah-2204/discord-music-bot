@@ -9,8 +9,7 @@ from discord.ext import commands
 
 # Helper functions
 sent_embed = {
-# Structure:
-# "guild": []
+
 }
 
 playlist = {
@@ -31,13 +30,13 @@ YDL_OPTIONS = {
     }]
 }
 
-async def get_title(ctx, url):
+async def get_title(url):
     with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
         info = ydl.extract_info(url, download=False)
         title = info['title']
         return title
 
-async def find_song(ctx, args):
+async def find_song(args):
     args = args.replace(' ', '+')
     html_content = urllib.request.urlopen(f"https://youtube.com/results?search_query={args}")  # YouTube's search link structure
     video_ids = re.findall(r"watch\?v=(\S{11})", html_content.read().decode())  # Each video has a unique ID, 11 characters long.
@@ -47,7 +46,6 @@ async def find_song(ctx, args):
         return args
 
     except KeyError:  # If video_ids[0] doesn't exist
-        await ctx.send(f"No results were found for '{args}'.")
         return None
 
 
@@ -94,12 +92,13 @@ class Music(commands.Cog):
                 playlist[str(ctx.guild.id)].append(args)
 
             else:
-                playlist[str(ctx.guild.id)].append(args)
+                if args not in playlist[str(ctx.guild.id)]:
+                    playlist[str(ctx.guild.id)].append(args)
 
-            if args.startswith('https://') or args.startswith('http://'):
-                song = await get_title(ctx, args)  # So that we can get the song title
+            if args.startswith("https://") or args.startswith("http://"):
+                song = await get_title(args)  # So that we can get the song title
             else:
-                song = args  # Just use the name that the user passed
+                song = await get_title(await find_song(args))  # Just use the name that the user passed
 
             em = discord.Embed(
                 title="Added song to playlist",
@@ -110,6 +109,8 @@ class Music(commands.Cog):
             # Really bad logic. I know. I couldn't find another way.
             if str(ctx.guild.id) not in sent_embed:
                 sent_embed[str(ctx.guild.id)] = []
+
+            if args not in sent_embed[str(ctx.guild.id)]:
                 sent_embed[str(ctx.guild.id)].append(args)
                 await ctx.send(embed=em)
 
@@ -142,7 +143,7 @@ class Music(commands.Cog):
         vc = ctx.voice_client
 
         if not args.startswith("https://") or not args.startswith("http://"):
-            args = await find_song(ctx, args)
+            args = await find_song(args)
 
         if args is not None:
             try:
@@ -176,6 +177,8 @@ class Music(commands.Cog):
                 except youtube_dl.utils.DownloadError:
                     await ctx.send("There was an error. Are you sure that is the correct URL?")
                 return
+        else:
+            await ctx.send("I couldn't find that song/video.")
 
 
 
@@ -238,7 +241,7 @@ class Music(commands.Cog):
         else:
             await ctx.send("I'm not in a voice channel")
 
-    @commands.command(name="skip")
+    @commands.command(name="skip", help="Skip a song")
     async def skip(self, ctx):
         if ctx.author.voice is None:
             await ctx.send("You need to be in a voice channel to run that command")
@@ -258,7 +261,7 @@ class Music(commands.Cog):
             await ctx.send("I'm not in a voice channel.")
 
 
-    @commands.command(name="playlist", aliases=["q","queue"])
+    @commands.command(name="playlist", aliases=["q","queue"], help="Show the upcoming songs")
     async def queue(self, ctx):
         if ctx.author.voice is None:
             await ctx.send("You need to be in a voice channel to run that command")
@@ -272,23 +275,35 @@ class Music(commands.Cog):
 
         if str(ctx.guild.id) not in playlist:
             await ctx.send("The playlist is empty")
+            return
 
         else:
+            add_footer = False
             desc = ""
             i = 1
 
             for song in playlist[str(ctx.guild.id)]:
-                desc += f"{i}. {song}\n"
-                i += 1
+                if song.startswith("https://") or song.startswith("http://"):
+                    song = await get_title(song)
+                else:
+                    song = await get_title(await find_song(song))
+
+                if song is not None:
+                    desc += f"{i}. {song}\n"
+                    i += 1
+                if song is None:
+                    add_footer = True
 
             if desc != "":
                 em = discord.Embed(
-                    title="Upcoming",
+                    title="Upcoming songs:",
                     description=desc,
                     color=0x60FF60
                 )
+            if add_footer is True:
+                em.set_footer(text="Missing songs? That might be because I couldn't find them from the URL/keywords you provided.")
 
-            else:
+            if desc == "":
                 await ctx.send("The playlist is empty")
 
             await ctx.send(embed=em)
