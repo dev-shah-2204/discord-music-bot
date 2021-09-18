@@ -183,7 +183,8 @@ class Music(commands.Cog):
 
 
     @commands.command(name="play", aliases=["p"], help="Play a song.")
-    @commands.bot_has_permissions(discord.Permissions.voice())
+    @commands.bot_has_permissions(connect=True)
+    @commands.bot_has_permissions(speak=True)
     async def play(self, ctx, *, args:str):
         await self.join(ctx)
         await self.wait_until_song_complete(ctx, args)
@@ -199,7 +200,7 @@ class Music(commands.Cog):
         voice = ctx.voice_client
 
         if voice is None:
-            await ctx.send("Bruh I'm not even in a VC smh.")
+            await ctx.send("I'm not connected to a voice channel")
             return
 
         if voice.is_playing():
