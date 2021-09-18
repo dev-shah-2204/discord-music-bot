@@ -38,15 +38,13 @@ class Info(commands.Cog):
         )
         em.add_field(
             name="Servers:",
-            value=len(self.bot.guilds)
-        )
-        em.add_field(
-            name="Users",
-            value=len(self.bot.users)
+            value=len(self.bot.guilds),
+            inline=False
         )
         em.add_field(
             name="Active voice channels",
-            value=len(self.bot.voice_clients)
+            value=len(self.bot.voice_clients),
+            inline=False
         )
 
         await ctx.send(embed=em)
