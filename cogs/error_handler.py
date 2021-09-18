@@ -15,7 +15,7 @@ class ErrorHandler(commands.Cog):
             return
 
         elif isinstance(error, commands.BotMissingPermissions):
-            perm = error.missing_permissions[0].title().replace('_', ' ')
+            perm = error.missing_perms[0].title().replace('_', ' ')
 
             await ctx.send(f"{ctx.author.mention}, I need the `{perm}` permission in order to complete that command")
             ctx.command.reset_cooldown(ctx)
