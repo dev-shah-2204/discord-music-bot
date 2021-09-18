@@ -183,6 +183,7 @@ class Music(commands.Cog):
 
 
     @commands.command(name="play", aliases=["p"], help="Play a song.")
+    @commands.bot_has_permissions(discord.Permissions.voice())
     async def play(self, ctx, *, args:str):
         await self.join(ctx)
         await self.wait_until_song_complete(ctx, args)
