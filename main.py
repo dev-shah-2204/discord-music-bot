@@ -3,7 +3,9 @@ from bot import MusicBot
 
 
 cogs = [
-    'music'
+    'music',
+    'error_handler',
+    'info'
 ]
 
 bot = MusicBot()
