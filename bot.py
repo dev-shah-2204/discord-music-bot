@@ -8,7 +8,7 @@ from discord.ext import commands
 class MusicBot(commands.Bot):
     def __init__(self):
         super().__init__(
-            command_prefix='m!',
+            command_prefix=commands.when_mentioned_or('m!'),
             intentes=discord.Intents.all(),
             case_insensitive=True,
             allowed_mentions=discord.AllowedMentions(everyone=False),
