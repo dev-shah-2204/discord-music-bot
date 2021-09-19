@@ -30,7 +30,7 @@ class ErrorHandler(commands.Cog):
             return
 
         elif isinstance(error, commands.CommandNotFound):
-            await ctx.send(f"Did you make a typo? Because that command doesn't exist")
+            await ctx.send(f"Did you make a typo? Because the command `{ctx.command}` doesn't exist")
             return
 
         elif isinstance(error, discord.Forbidden) or isinstance(error, discord.errors.Forbidden):
@@ -42,14 +42,14 @@ class ErrorHandler(commands.Cog):
 
             em = discord.Embed(
                 title="Error",
-                description=f"```Command: {ctx.command}\nServer: {ctx.guild} ({ctx.guild.id})\nChannel: {ctx.chanel} ({ctx.channel.id})\nUser: {ctx.author} ({ctx.author.id})```",
+                description=f"```Command: {ctx.command}\nServer: {ctx.guild} ({ctx.guild.id})\nChannel: {ctx.channel} ({ctx.channel.id})\nUser: {ctx.author} ({ctx.author.id})```",
                 color=discord.Color.brand_red()
             )
-            em.add_field(name="Message:", value=ctx.message.content)
+            em.add_field(name="Message:", value=ctx.message.content, inline=False)
             em.add_field(name="Error", value=f"```{error}```")
 
-            await channel.send(embed=em)
-
+            if channel is not None:
+                await channel.send(embed=em)
 
 
 def setup(bot):
