@@ -30,7 +30,7 @@ class ErrorHandler(commands.Cog):
             return
 
         elif isinstance(error, commands.CommandNotFound):
-            await ctx.send(f"Did you make a typo? Because the command `{ctx.command}` doesn't exist")
+            await ctx.send(f"Did you make a typo? Because that command doesn't exist")
             return
 
         elif isinstance(error, discord.Forbidden) or isinstance(error, discord.errors.Forbidden):
