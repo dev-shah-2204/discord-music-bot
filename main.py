@@ -8,7 +8,7 @@ cogs = [
     'info'
 ]
 
-bot = MusicBot(prefix="m>")
+bot = MusicBot(prefix="m!")
 
 for cog in cogs:
     if __name__ == "__main__":
