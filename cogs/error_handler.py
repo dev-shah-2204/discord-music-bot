@@ -43,7 +43,7 @@ class ErrorHandler(commands.Cog):
             em = discord.Embed(
                 title="Error",
                 description=f"```Command: {ctx.command}\nServer: {ctx.guild} ({ctx.guild.id})\nChannel: {ctx.channel} ({ctx.channel.id})\nUser: {ctx.author} ({ctx.author.id})```",
-                color=discord.Color.brand_red()
+                color=0xFF3E3E
             )
             em.add_field(name="Message:", value=ctx.message.content, inline=False)
             em.add_field(name="Error", value=f"```{error}```")
