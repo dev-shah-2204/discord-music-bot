@@ -241,15 +241,16 @@ class Music(commands.Cog):
 
         voice = ctx.voice_client
 
+        if voice is None:
+            await ctx.send("I'm not in a voice channel.")
+            return
+
         voice_channel = ctx.author.voice.channel
         bot_voice_channel = voice.channel
 
         if voice_channel != bot_voice_channel:
             await ctx.send("You need to be in the same voice channel as me to run that command.")
 
-        if voice is None:
-            await ctx.send("I'm not connected to a voice channel")
-            return
 
         if voice.is_playing():
             voice.pause()
@@ -312,15 +313,15 @@ class Music(commands.Cog):
 
         voice = ctx.voice_client
 
+        if voice is None:
+            await ctx.send("I'm not in a voice channel.")
+            return
+
         voice_channel = ctx.author.voice.channel
         bot_voice_channel = voice.channel
 
         if voice_channel != bot_voice_channel:
             await ctx.send("You need to be in the same voice channel as me to run that command.")
-
-        if voice is None:
-            await ctx.send("I'm not in a voice channel.")
-            return
 
         if voice.is_playing():
             voice.stop()
@@ -353,10 +354,10 @@ class Music(commands.Cog):
             await self.wait_until_song_complete(ctx, check)
 
 
-
     @commands.command(name="playlist", aliases=["q","queue"], help="Show the upcoming songs")
     async def queue(self, ctx):
         global playlist_with_names
+
         if ctx.author.voice is None:
             await ctx.send("You need to be in a voice channel to run that command")
             return
@@ -374,9 +375,6 @@ class Music(commands.Cog):
             await ctx.send("You need to be in the same voice channel as me to run that command.")
             return
 
-        if voice is None:
-            await ctx.send("I'm not in a voice channel")
-            return
 
         if str(ctx.guild.id) not in playlist_with_names:
             await ctx.send("The playlist is empty")
