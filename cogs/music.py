@@ -7,14 +7,12 @@ from asyncio import sleep
 from discord.ext import commands
 
 
-# Helper functions
-sent_embed = {
+#Static functions/variables that don't need to be in the class
+pause_time = {}
 
-}
+playlist = {}
 
-playlist = {
-
-}
+playlist_with_names = {}
 
 FFMPEG_OPTIONS = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
@@ -49,6 +47,18 @@ async def find_song(args):
         return None
 
 
+async def check_if_playlist(ctx):
+    guild = str(ctx.guild.id)
+    if guild not in playlist:
+        playlist[guild] = []
+        return None
+
+    if playlist[guild] == []:
+        return None
+
+    if len(playlist[guild]) > 0:
+        return playlist[guild][0]
+
 # Main cog
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -71,67 +81,113 @@ class Music(commands.Cog):
 
     @commands.command(name="leave", aliases=["fuckoff"], help="Make the bot leave a voice channel")
     async def leave(self, ctx):
+        global playlist
+        global playlist_with_names
+
         if ctx.voice_client is None:
             await ctx.send("I'm not in a voice channel.")
             return
 
         await ctx.voice_client.disconnect()
+        playlist[str(ctx.guild.id)] = []  # Reset the playlist
+        playlist_with_names[str(ctx.guild.id)] = []  # Reset the playlist
         await ctx.message.add_reaction("👋")
 
 
     async def wait_until_song_complete(self, ctx, args):
-        # Code written with really bad logic. Forgive me.
-        vc = ctx.voice_client
+        """
+        Function to check every few seconds
+        if the voice client is done playing
+        a song.
+        """
+        global playlist
+        global playlist_with_names
 
-        if vc is None:  # If they made the bot leave the voice channel before the function was re-called
+        vc = ctx.voice_client
+        guild = str(ctx.guild.id)
+
+        # Adding guild id in the playlist dictionaries
+        if guild not in playlist:
+            playlist[guild] = []
+
+        if guild not in playlist_with_names:
+            playlist_with_names[guild] = []
+
+        # Checking different states of the voice client
+        if vc is None:
             return
 
-        if vc.is_playing():
-            # Really bad logic. I know. I couldn't find another way.
-            if str(ctx.guild.id) not in sent_embed:
-                sent_embed[str(ctx.guild.id)] = []
+        if vc.is_playing():  # If something is being played
+            if args not in playlist[guild]:
+                playlist[guild].append(args)
 
-            if args not in sent_embed[str(ctx.guild.id)]:
-                if str(ctx.guild.id) not in playlist:
-                    playlist[str(ctx.guild.id)] = []
-                    playlist[str(ctx.guild.id)].append(args)
-
+                if not args.startswith("https://") or not args.startswith("http://"):
+                    song = await find_song(args)
+                    if song is None:
+                        await ctx.send("Couldn't find that on YouTube.")
+                        return
                 else:
-                    if args not in playlist[str(ctx.guild.id)]:
-                        playlist[str(ctx.guild.id)].append(args)
+                    song = args
 
+                song_title = await get_title(song)
 
-                if args.startswith("https://") or args.startswith("http://"):
-                    song = await get_title(args)  # So that we can get the song title
-                else:
-                    song = await get_title(await find_song(args))  # Just use the name that the user passed
+                if song_title is None:
+                    await ctx.send("Couldn't find that on YouTube.")
+                    return
+
 
                 em = discord.Embed(
                     title="Added song to playlist",
-                    description=song,
+                    description=song_title,
                     color=0x60FF60
                 )
-
-                sent_embed[str(ctx.guild.id)].append(args)
                 await ctx.send(embed=em)
+                playlist_with_names[guild].append(song_title)
 
-
-            await sleep(3)  # Check every 3 seconds
+            await sleep(3)  # Check every 3 seconds. I know it's not a very good method.
             await self.wait_until_song_complete(ctx, args)
 
+        if vc.is_paused():
+            if guild not in pause_time:
+                pause_time[guild] = 0
+            else:
+                pause_time[guild] += 5
 
-        else:
-            if str(ctx.guild.id) not in playlist:  # If it's the first time the command was run, guild id won't be in the dict
-                playlist[str(ctx.guild.id)] = []
-                playlist[str(ctx.guild.id)].append(args)
+            if pause_time[guild] > 120:
+                await ctx.send("I was paused for more than 2 minutes, so I left the voice channel. Your playlist has been cleared")
+                if guild in playlist:
+                    playlist[guild] = []
+
+                return
+
+            await sleep(5)
+            await self.wait_until_song_complete(ctx, args)
+
+        else:  # If the voice client is idle
+            try:
+                song = playlist[guild][0]
+                song_title = playlist_with_names[guild][0]
+            except IndexError:
+                playlist[guild].append(args)
+
+                if not args.startswith("https://") or not args.startswith("http://"):
+                    song = await find_song(args)
+                    if song is None:
+                        await ctx.send("Couldn't find that on YouTube.")
+                        return
+                else:
+                    song = args
+
+                song_title = await get_title(song)
 
             try:
-                await self.play_song(ctx, playlist[str(ctx.guild.id)][0])
-                playlist[str(ctx.guild.id)].remove(args)
+                await self.play_song(ctx, song)
+                del song
+                del song_title
 
-            except discord.ClientException:
+            except discord.ClientException or discord.errors.ClientException:
+                await sleep(1)  # Try again in a second
                 await self.wait_until_song_complete(ctx, args)
-
 
 
     async def play_song(self, ctx, args):
@@ -247,6 +303,7 @@ class Music(commands.Cog):
         else:
             await ctx.send("I'm not in a voice channel")
 
+
     @commands.command(name="skip", help="Skip a song")
     async def skip(self, ctx):
         if ctx.author.voice is None:
@@ -261,25 +318,54 @@ class Music(commands.Cog):
         if voice_channel != bot_voice_channel:
             await ctx.send("You need to be in the same voice channel as me to run that command.")
 
-        if voice is not None:
-            if voice.is_playing():
-                voice.stop()
-                await ctx.send(f"Song skipped by {ctx.author.mention}")
-
-            if voice.is_paused():
-                pass
-
-        else:
+        if voice is None:
             await ctx.send("I'm not in a voice channel.")
+            return
+
+        if voice.is_playing():
+            voice.stop()
+
+            if str(ctx.guild.id) in playlist:
+                del playlist[str(ctx.guild.id)][0]  # Remove that song from the playlist
+
+            if str(ctx.guild.id) in playlist_with_names:
+                del playlist_with_names[str(ctx.guild.id)][0]  # Remove that song from the playlist
+
+            await ctx.send(f"Song skipped by {ctx.author.mention}")
+
+        if voice.is_paused():
+            voice.resume()
+            voice.stop()
+
+            if str(ctx.guild.id) in playlist:
+                del playlist[str(ctx.guild.id)][0]  # Remove that song from the playlist
+
+            if str(ctx.guild.id) in playlist_with_names:
+                del playlist_with_names[str(ctx.guild.id)][0]  # Remove that song from the playlist
+
+            await ctx.send(f"Song skipped by {ctx.author.mention}")
+
+        check = await check_if_playlist(ctx)
+
+        if check is None:
+            return
+        else:
+            await self.wait_until_song_complete(ctx, check)
+
 
 
     @commands.command(name="playlist", aliases=["q","queue"], help="Show the upcoming songs")
     async def queue(self, ctx):
+        global playlist_with_names
         if ctx.author.voice is None:
             await ctx.send("You need to be in a voice channel to run that command")
             return
 
         voice = ctx.voice_client
+
+        if voice is None:
+            await ctx.send("I'm not in a voice channel")
+            return
 
         voice_channel = ctx.author.voice.channel
         bot_voice_channel = voice.channel
@@ -292,7 +378,7 @@ class Music(commands.Cog):
             await ctx.send("I'm not in a voice channel")
             return
 
-        if str(ctx.guild.id) not in playlist:
+        if str(ctx.guild.id) not in playlist_with_names:
             await ctx.send("The playlist is empty")
             return
 
@@ -301,17 +387,13 @@ class Music(commands.Cog):
             desc = ""
             i = 1
 
-            for song in playlist[str(ctx.guild.id)]:
-                if song.startswith("https://") or song.startswith("http://"):
-                    song = await get_title(song)
-                else:
-                    song = await get_title(await find_song(song))
+            await ctx.send("Hang on, playlist loading.")
 
-                if song is not None:
-                    desc += f"{i}. {song}\n"
-                    i += 1
-                if song is None:
-                    add_footer = True
+            for song in playlist_with_names[str(ctx.guild.id)]:
+                print(song)
+                desc += f"{i}. {song}\n"
+                i += 1
+
 
             if desc != "":
                 em = discord.Embed(
@@ -319,8 +401,6 @@ class Music(commands.Cog):
                     description=desc,
                     color=0x60FF60
                 )
-            if add_footer is True:
-                em.set_footer(text="Missing songs? That might be because I couldn't find them from the URL/keywords you provided.")
 
             if desc == "":
                 await ctx.send("The playlist is empty")
