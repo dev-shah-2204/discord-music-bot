@@ -326,11 +326,15 @@ class Music(commands.Cog):
         if voice.is_playing():
             voice.stop()
 
-            if str(ctx.guild.id) in playlist:
-                del playlist[str(ctx.guild.id)][0]  # Remove that song from the playlist
+            try:
+                if str(ctx.guild.id) in playlist:
+                    del playlist[str(ctx.guild.id)][0]  # Remove that song from the playlist
 
-            if str(ctx.guild.id) in playlist_with_names:
-                del playlist_with_names[str(ctx.guild.id)][0]  # Remove that song from the playlist
+                if str(ctx.guild.id) in playlist_with_names:
+                    del playlist_with_names[str(ctx.guild.id)][0]  # Remove that song from the playlist
+
+            except IndexError:
+                pass
 
             await ctx.send(f"Song skipped by {ctx.author.mention}")
 
@@ -338,11 +342,15 @@ class Music(commands.Cog):
             voice.resume()
             voice.stop()
 
-            if str(ctx.guild.id) in playlist:
-                del playlist[str(ctx.guild.id)][0]  # Remove that song from the playlist
+            try:
+                if str(ctx.guild.id) in playlist:
+                    del playlist[str(ctx.guild.id)][0]  # Remove that song from the playlist
 
-            if str(ctx.guild.id) in playlist_with_names:
-                del playlist_with_names[str(ctx.guild.id)][0]  # Remove that song from the playlist
+                if str(ctx.guild.id) in playlist_with_names:
+                    del playlist_with_names[str(ctx.guild.id)][0]  # Remove that song from the playlist
+
+            except IndexError:
+                pass
 
             await ctx.send(f"Song skipped by {ctx.author.mention}")
 
